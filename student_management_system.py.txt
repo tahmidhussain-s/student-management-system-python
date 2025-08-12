@@ -1,0 +1,309 @@
+import json
+import os
+
+# --- Section A: Class Design and Implementation ---
+
+class Person:
+    """
+    Base class for a person, with basic attributes.
+    """
+    def __init__(self, name, age, address):
+        self.name = name
+        self.age = age
+        self.address = address
+
+    def display_person_info(self):
+        """
+        Prints the person's details.
+        """
+        print(f"Name: {self.name}")
+        print(f"Age: {self.age}")
+        print(f"Address: {self.address}")
+
+class Student(Person):
+    """
+    Represents a student, inheriting from Person.
+    Includes student-specific attributes and methods.
+    """
+    def __init__(self, name, age, address, student_id):
+        # Call the constructor of the parent class (Person)
+        super().__init__(name, age, address)
+        self.student_id = student_id
+        # Initialize grades and courses as empty dictionaries and lists
+        self.grades = {}  # e.g., {"Math": "A"}
+        self.courses = [] # e.g., ["Physics", "Chemistry"]
+
+    def add_grade(self, subject, grade):
+        """
+        Adds or updates a grade for a subject.
+        """
+        self.grades[subject] = grade
+
+    def enroll_course(self, course_name):
+        """
+        Enrolls the student in a specified course.
+        """
+        if course_name not in self.courses:
+            self.courses.append(course_name)
+
+    def display_student_info(self):
+        """
+        Prints all student details, including enrolled courses and grades.
+        """
+        print("\nStudent Information:")
+        super().display_person_info() # Reuse the parent class method
+        print(f"ID: {self.student_id}")
+        print(f"Enrolled Courses: {', '.join(self.courses)}")
+        print(f"Grades: {self.grades}")
+
+class Course:
+    """
+    Represents a course with its details.
+    """
+    def __init__(self, course_name, course_code, instructor):
+        self.course_name = course_name
+        self.course_code = course_code
+        self.instructor = instructor
+        self.students = []  # List of student objects
+
+    def add_student(self, student):
+        """
+        Adds a student object to the course's student list.
+        """
+        if student not in self.students:
+            self.students.append(student)
+
+    def display_course_info(self):
+        """
+        Prints course details and the names of enrolled students.
+        """
+        print("\nCourse Information:")
+        print(f"Course Name: {self.course_name}")
+        print(f"Code: {self.course_code}")
+        print(f"Instructor: {self.instructor}")
+        enrolled_students = [student.name for student in self.students]
+        print(f"Enrolled Students: {', '.join(enrolled_students)}")
+
+
+# --- Global data storage ---
+students_db = {}  # Dictionary to store student objects by student_id
+courses_db = {}   # Dictionary to store course objects by course_code
+FILE_NAME = "student_data.json"
+
+
+# --- Section B: System Functionalities (CLI) & Section C: Error Handling ---
+
+def save_data():
+    """
+    Saves student and course data to a JSON file.
+    This function converts objects to dictionaries for JSON serialization.
+    """
+    try:
+        # Prepare data for saving by converting objects to dictionaries
+        students_to_save = {}
+        for student_id, student_obj in students_db.items():
+            students_to_save[student_id] = {
+                "name": student_obj.name,
+                "age": student_obj.age,
+                "address": student_obj.address,
+                "student_id": student_obj.student_id,
+                "grades": student_obj.grades,
+                "courses": student_obj.courses
+            }
+
+        courses_to_save = {}
+        for course_code, course_obj in courses_db.items():
+            courses_to_save[course_code] = {
+                "course_name": course_obj.course_name,
+                "course_code": course_obj.course_code,
+                "instructor": course_obj.instructor,
+                "students": [student.student_id for student in course_obj.students] # Save student IDs
+            }
+
+        data_to_save = {
+            "students": students_to_save,
+            "courses": courses_to_save
+        }
+
+        with open(FILE_NAME, 'w') as file:
+            json.dump(data_to_save, file, indent=4)
+        print("All student and course data saved successfully.")
+    except Exception as e:
+        print(f"Error saving data: {e}")
+
+def load_data():
+    """
+    Loads student and course data from a JSON file and recreates objects.
+    """
+    global students_db, courses_db
+    if not os.path.exists(FILE_NAME):
+        print("Data file not found. Starting with empty records.")
+        return
+
+    try:
+        with open(FILE_NAME, 'r') as file:
+            data = json.load(file)
+
+        # Restore students
+        students_db = {}
+        for student_id, student_data in data["students"].items():
+            student = Student(
+                student_data["name"],
+                student_data["age"],
+                student_data["address"],
+                student_data["student_id"]
+            )
+            student.grades = student_data["grades"]
+            student.courses = student_data["courses"]
+            students_db[student_id] = student
+
+        # Restore courses
+        courses_db = {}
+        for course_code, course_data in data["courses"].items():
+            course = Course(
+                course_data["course_name"],
+                course_data["course_code"],
+                course_data["instructor"]
+            )
+            # Re-link student objects to the course
+            for student_id in course_data["students"]:
+                if student_id in students_db:
+                    course.add_student(students_db[student_id])
+            courses_db[course_code] = course
+
+        print("Data loaded successfully.")
+    except Exception as e:
+        print(f"Error loading data: {e}")
+
+def add_new_student():
+    name = input("Enter Name: ")
+    try:
+        age = int(input("Enter Age: "))
+    except ValueError:
+        print("Error: Age must be a number.")
+        return
+    address = input("Enter Address: ")
+    student_id = input("Enter Student ID: ")
+
+    if student_id in students_db:
+        print(f"Error: Student with ID {student_id} already exists.")
+        return
+    
+    new_student = Student(name, age, address, student_id)
+    students_db[student_id] = new_student
+    print(f"Student {name} (ID: {student_id}) added successfully.")
+
+def add_new_course():
+    course_name = input("Enter Course Name: ")
+    course_code = input("Enter Course Code: ")
+    instructor = input("Enter Instructor: ")
+
+    if course_code in courses_db:
+        print(f"Error: Course with code {course_code} already exists.")
+        return
+    
+    new_course = Course(course_name, course_code, instructor)
+    courses_db[course_code] = new_course
+    print(f"Course {course_name} (Code: {course_code}) created with instructor {instructor}.")
+
+def enroll_student_in_course():
+    student_id = input("Enter Student ID: ")
+    course_code = input("Enter Course Code: ")
+
+    student = students_db.get(student_id)
+    course = courses_db.get(course_code)
+
+    if not student:
+        print(f"Error: Student with ID {student_id} not found.")
+        return
+    
+    if not course:
+        print(f"Error: Course with code {course_code} not found.")
+        return
+    
+    student.enroll_course(course.course_name)
+    course.add_student(student)
+    print(f"Student {student.name} (ID: {student_id}) enrolled in {course.course_name} (Code: {course_code}).")
+
+def add_grade_for_student():
+    student_id = input("Enter Student ID: ")
+    course_name = input("Enter Course Name (e.g., Physics): ")
+    grade = input("Enter Grade: ")
+
+    student = students_db.get(student_id)
+    
+    if not student:
+        print(f"Error: Student with ID {student_id} not found.")
+        return
+    
+    # Ensure student is enrolled in the course before assigning a grade
+    if course_name not in student.courses:
+        print(f"Error: Student is not enrolled in {course_name}.")
+        return
+
+    student.add_grade(course_name, grade)
+    print(f"Grade {grade} added for {student.name} in {course_name}.")
+
+def display_student_details():
+    student_id = input("Enter Student ID: ")
+    student = students_db.get(student_id)
+    
+    if student:
+        student.display_student_info()
+    else:
+        print(f"Error: Student with ID {student_id} not found.")
+
+def display_course_details():
+    course_code = input("Enter Course Code: ")
+    course = courses_db.get(course_code)
+    
+    if course:
+        course.display_course_info()
+    else:
+        print(f"Error: Course with code {course_code} not found.")
+
+def main_menu():
+    """
+    Main function to run the CLI system.
+    """
+    load_data() # Load data at startup
+
+    while True:
+        print("\n==== Student Management System ====")
+        print("1. Add New Student")
+        print("2. Add New Course")
+        print("3. Enroll Student in Course")
+        print("4. Add Grade for Student")
+        print("5. Display Student Details")
+        print("6. Display Course Details")
+        print("7. Save Data to File")
+        print("8. Load Data from File")
+        print("0. Exit")
+        
+        choice = input("Select Option: ")
+
+        if choice == '1':
+            add_new_student()
+        elif choice == '2':
+            add_new_course()
+        elif choice == '3':
+            enroll_student_in_course()
+        elif choice == '4':
+            add_grade_for_student()
+        elif choice == '5':
+            display_student_details()
+        elif choice == '6':
+            display_course_details()
+        elif choice == '7':
+            save_data()
+        elif choice == '8':
+            load_data()
+        elif choice == '0':
+            print("Exiting Student Management System. Goodbye!")
+            break
+        else:
+            print("Invalid option. Please choose a number from the menu.")
+
+# Run the main function when the script is executed
+if __name__ == "__main__":
+    main_menu()
